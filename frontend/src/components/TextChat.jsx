@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Music2 } from 'lucide-react'
+import { Send, Loader2, Music2, Paperclip, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from './Button'
@@ -11,10 +11,13 @@ export function TextChat() {
   const [input, setInput] = useState('')
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [uploadedFile, setUploadedFile] = useState(null)
+  const [isUploading, setIsUploading] = useState(false)
   const sessionRef = useRef(null)
   const messagesEndRef = useRef(null)
   const currentResponseRef = useRef('')
   const responseQueueRef = useRef([])
+  const fileInputRef = useRef(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -190,23 +193,89 @@ export function TextChat() {
     }
   }
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Check if it's an audio file
+    if (!file.type.startsWith('audio/')) {
+      alert('Please upload an audio file (MP3, WAV, etc.)')
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        throw new Error('Upload failed')
+      }
+
+      const data = await response.json()
+      setUploadedFile({
+        name: file.name,
+        uri: data.uri,
+        mimeType: data.mimeType
+      })
+    } catch (error) {
+      console.error('Upload error:', error)
+      alert('Failed to upload file: ' + error.message)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const removeFile = () => {
+    setUploadedFile(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
   const sendMessage = (e) => {
     e.preventDefault()
     
-    if (!input.trim() || !isConnected || isLoading) return
+    if ((!input.trim() && !uploadedFile) || !isConnected || isLoading) return
 
+    const content = input.trim()
     const userMessage = {
       role: 'user',
-      content: input.trim()
+      content: uploadedFile 
+        ? `${content || 'Analyze this music'}\n[Attached: ${uploadedFile.name}]`
+        : content
     }
 
     setMessages(prev => [...prev, userMessage])
     setIsLoading(true)
 
-    sessionRef.current.sendClientContent({
-      turns: input.trim(),
-      turnComplete: true
-    })
+    // Send with file if uploaded
+    if (uploadedFile) {
+      sessionRef.current.sendClientContent({
+        turns: [{
+          role: 'user',
+          parts: [
+            { fileData: { fileUri: uploadedFile.uri, mimeType: uploadedFile.mimeType } },
+            { text: content || 'Please analyze this music track. Provide constructive feedback on the production quality, mixing, arrangement, and overall sound. What are the strengths and what could be improved?' }
+          ]
+        }],
+        turnComplete: true
+      })
+      setUploadedFile(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    } else {
+      sessionRef.current.sendClientContent({
+        turns: content,
+        turnComplete: true
+      })
+    }
 
     setInput('')
   }
@@ -265,18 +334,51 @@ export function TextChat() {
       </div>
 
       <div className="border-t border-gray-100 p-6">
+        {uploadedFile && (
+          <div className="mb-3 flex items-center gap-2 p-3 bg-purple-50 rounded-lg">
+            <Music2 className="h-4 w-4 text-purple-600" />
+            <span className="text-sm text-purple-900 flex-1">{uploadedFile.name}</span>
+            <button
+              onClick={removeFile}
+              className="text-purple-600 hover:text-purple-800"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+        
         <form onSubmit={sendMessage} className="flex gap-3">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept="audio/*"
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!isConnected || isUploading || isLoading}
+            className="w-11 h-11 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            title="Upload music file"
+          >
+            {isUploading ? (
+              <Loader2 className="h-5 w-5 animate-spin" strokeWidth={2.5} />
+            ) : (
+              <Paperclip className="h-5 w-5" strokeWidth={2.5} />
+            )}
+          </button>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isConnected ? "Message Migo..." : "Connecting..."}
+            placeholder={isConnected ? (uploadedFile ? "Add a message (optional)..." : "Message Migo...") : "Connecting..."}
             disabled={!isConnected || isLoading}
             className="flex-1 px-5 py-3 bg-gray-50 border-0 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 placeholder:text-gray-400 text-gray-900 transition-all"
           />
           <button
             type="submit"
-            disabled={!isConnected || !input.trim() || isLoading}
+            disabled={!isConnected || (!input.trim() && !uploadedFile) || isLoading}
             className="w-11 h-11 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg transition-all duration-200 hover:scale-105"
           >
             {isLoading ? (
