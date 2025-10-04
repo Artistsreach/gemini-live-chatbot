@@ -61,9 +61,11 @@ export function VoiceChat() {
 
   const connectVoice = async () => {
     try {
+      console.log('[Voice] Starting connection...')
       setIsLoading(true)
       
       // Get ephemeral token from Vercel API
+      console.log('[Voice] Fetching token...')
       const tokenResponse = await fetch('/api/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,17 +73,22 @@ export function VoiceChat() {
       })
       
       if (!tokenResponse.ok) {
-        throw new Error('Failed to get token')
+        const errorText = await tokenResponse.text()
+        console.error('[Voice] Token fetch failed:', errorText)
+        throw new Error('Failed to get token: ' + errorText)
       }
       
-      const { token } = await tokenResponse.json()
+      const tokenData = await tokenResponse.json()
+      console.log('[Voice] Token received:', tokenData)
       
       // Connect to Gemini Live using SDK
+      console.log('[Voice] Creating Gemini client...')
       const ai = new GoogleGenAI({ 
-        apiKey: token,
+        apiKey: tokenData.token,
         httpOptions: { apiVersion: 'v1alpha' }
       })
       
+      console.log('[Voice] Connecting to Gemini Live...')
       const session = await ai.live.connect({
         model: 'gemini-live-2.5-flash-preview',
         config: {
@@ -90,22 +97,31 @@ export function VoiceChat() {
           outputAudioTranscription: {}
         },
         callbacks: {
-          onopen: () => {
-            console.log('Gemini voice session opened')
+          onopen: async () => {
+            console.log('[Voice] Session opened! Requesting microphone access...')
             setIsConnected(true)
             setIsLoading(false)
-            startRecording(session)
+            // Start recording after connection is established
+            try {
+              await startRecording(session)
+              console.log('[Voice] Recording started successfully')
+            } catch (err) {
+              console.error('[Voice] Failed to start recording:', err)
+              alert('Failed to access microphone: ' + err.message)
+            }
           },
           onmessage: (message) => {
+            console.log('[Voice] Message received:', message)
             handleVoiceMessage(message)
           },
           onerror: (e) => {
-            console.error('Gemini error:', e.message)
+            console.error('[Voice] Gemini error:', e)
             setIsConnected(false)
             setIsLoading(false)
+            alert('Gemini error: ' + e.message)
           },
           onclose: (e) => {
-            console.log('Gemini session closed:', e.reason)
+            console.log('[Voice] Session closed:', e)
             setIsConnected(false)
             setIsRecording(false)
             cleanup()
@@ -114,11 +130,13 @@ export function VoiceChat() {
       })
       
       sessionRef.current = session
+      console.log('[Voice] Session stored in ref')
       
     } catch (error) {
-      console.error('Connection error:', error)
+      console.error('[Voice] Connection error:', error)
       alert('Failed to connect: ' + error.message)
       setIsLoading(false)
+      setIsConnected(false)
     }
   }
 
