@@ -57,33 +57,11 @@ function App() {
         </div>
 
         {/* Chat Container */}
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-200 overflow-hidden" style={{ height: '700px' }}>
+        <div className="bg-white rounded-3xl shadow-xl border border-gray-200 overflow-hidden" style={{ height: '500px' }}>
           {mode === 'text' ? <TextChat /> : <VoiceChat />}
         </div>
 
-        {/* Footer */}
-        <div className="mt-8 text-center text-xs text-gray-400 font-light">
-          <p>
-            Powered by{' '}
-            <a
-              href="https://ai.google.dev/gemini-api/docs/live-api"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-500 hover:text-gray-900 transition-colors"
-            >
-              Gemini
-            </a>
-            {' '}and{' '}
-            <a
-              href="https://www.firecrawl.dev/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-500 hover:text-gray-900 transition-colors"
-            >
-              Firecrawl
-            </a>
-          </p>
-        </div>
+        
       </div>
     </div>
   )
