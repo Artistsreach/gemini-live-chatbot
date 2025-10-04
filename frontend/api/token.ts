@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { GoogleGenAI, Modality, Type } from '@google/genai';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -14,10 +15,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { mode = 'text' } = req.body;
     
+    const client = new GoogleGenAI({ 
+      apiKey: GEMINI_API_KEY,
+      httpOptions: { apiVersion: 'v1alpha' }
+    });
+    
     const expireTime = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     const newSessionExpireTime = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     
-    const responseModality = mode === 'audio' ? ['AUDIO'] : ['TEXT'];
+    const responseModality = mode === 'audio' ? [Modality.AUDIO] : [Modality.TEXT];
     
     // System instruction
     const systemInstruction = `You are Migo, a music business expert who helps artists distribute and promote their music, as well as connect them to resources.
@@ -42,7 +48,7 @@ You have access to web scraping tools (scrape, crawl, search) and a knowledge ba
 
 Be friendly, supportive, and practical in your advice. Help artists navigate the complex music industry with clear, actionable guidance.`;
 
-    // Tool declarations
+    // Tool declarations with proper typing
     const tools = [
       {
         functionDeclarations: [
@@ -50,10 +56,10 @@ Be friendly, supportive, and practical in your advice. Help artists navigate the
             name: 'scrape_url',
             description: 'Scrapes a single URL and returns its content in markdown format.',
             parameters: {
-              type: 'object',
+              type: Type.OBJECT,
               properties: {
-                url: { type: 'string', description: 'The URL to scrape' },
-                formats: { type: 'array', items: { type: 'string' }, default: ['markdown'] }
+                url: { type: Type.STRING, description: 'The URL to scrape' },
+                formats: { type: Type.ARRAY, items: { type: Type.STRING } }
               },
               required: ['url']
             }
@@ -62,10 +68,10 @@ Be friendly, supportive, and practical in your advice. Help artists navigate the
             name: 'crawl_website',
             description: 'Crawls an entire website and returns content from all accessible pages.',
             parameters: {
-              type: 'object',
+              type: Type.OBJECT,
               properties: {
-                url: { type: 'string', description: 'The base URL to crawl' },
-                limit: { type: 'number', description: 'Maximum number of pages to crawl', default: 10 }
+                url: { type: Type.STRING, description: 'The base URL to crawl' },
+                limit: { type: Type.NUMBER, description: 'Maximum number of pages to crawl' }
               },
               required: ['url']
             }
@@ -74,10 +80,10 @@ Be friendly, supportive, and practical in your advice. Help artists navigate the
             name: 'search_web',
             description: 'Searches the web and returns relevant results.',
             parameters: {
-              type: 'object',
+              type: Type.OBJECT,
               properties: {
-                query: { type: 'string', description: 'The search query' },
-                limit: { type: 'number', description: 'Maximum number of results', default: 5 }
+                query: { type: Type.STRING, description: 'The search query' },
+                limit: { type: Type.NUMBER, description: 'Maximum number of results' }
               },
               required: ['query']
             }
@@ -86,10 +92,10 @@ Be friendly, supportive, and practical in your advice. Help artists navigate the
             name: 'fetch_knowledge',
             description: 'Fetch entries from the knowledge base. Optionally filter by exact title.',
             parameters: {
-              type: 'object',
+              type: Type.OBJECT,
               properties: {
-                title: { type: 'string', description: 'Exact title to fetch (optional)' },
-                limit: { type: 'number', description: 'Maximum rows to return', default: 10 }
+                title: { type: Type.STRING, description: 'Exact title to fetch (optional)' },
+                limit: { type: Type.NUMBER, description: 'Maximum rows to return' }
               }
             }
           },
@@ -97,10 +103,10 @@ Be friendly, supportive, and practical in your advice. Help artists navigate the
             name: 'search_knowledge',
             description: 'Search across title and note in the knowledge base.',
             parameters: {
-              type: 'object',
+              type: Type.OBJECT,
               properties: {
-                query: { type: 'string', description: 'Search term' },
-                limit: { type: 'number', description: 'Maximum rows', default: 10 }
+                query: { type: Type.STRING, description: 'Search term' },
+                limit: { type: Type.NUMBER, description: 'Maximum rows' }
               },
               required: ['query']
             }
@@ -109,43 +115,27 @@ Be friendly, supportive, and practical in your advice. Help artists navigate the
       }
     ];
 
-    const response = await fetch('https://generativelanguage.googleapis.com/v1alpha/authTokens', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': GEMINI_API_KEY
-      },
-      body: JSON.stringify({
-        config: {
-          uses: 1,
-          expireTime,
-          newSessionExpireTime,
-          liveConnectConstraints: {
-            model: 'gemini-2.5-flash-native-audio-preview-09-2025',
-            config: {
-              sessionResumption: {},
-              responseModalities: responseModality,
-              systemInstruction: { parts: [{ text: systemInstruction }] },
-              tools,
-              inputAudioTranscription: {},
-              outputAudioTranscription: mode === 'audio' ? {} : undefined
-            }
+    const token = await client.authTokens.create({
+      config: {
+        uses: 1,
+        expireTime,
+        newSessionExpireTime,
+        liveConnectConstraints: {
+          model: 'gemini-live-2.5-flash-preview',
+          config: {
+            sessionResumption: {},
+            responseModalities: responseModality,
+            systemInstruction,
+            tools
           }
-        }
-      })
+        },
+        httpOptions: { apiVersion: 'v1alpha' }
+      }
     });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Gemini API error:', error);
-      return res.status(response.status).json({ error: 'Failed to create token' });
-    }
-
-    const data = await response.json();
     
     res.status(200).json({
-      token: data.name,
-      model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+      token: token.name,
+      model: 'gemini-live-2.5-flash-preview',
       mode
     });
     
