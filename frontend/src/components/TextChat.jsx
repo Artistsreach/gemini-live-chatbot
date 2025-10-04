@@ -197,9 +197,13 @@ export function TextChat() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Check if it's an audio file
-    if (!file.type.startsWith('audio/')) {
-      alert('Please upload an audio file (MP3, WAV, etc.)')
+    // Check if it's an audio file (more permissive for various formats)
+    const audioExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.aiff']
+    const isAudio = file.type.startsWith('audio/') || 
+                    audioExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+    
+    if (!isAudio) {
+      alert('Please upload an audio file (MP3, WAV, M4A, etc.)')
       return
     }
 
@@ -352,7 +356,7 @@ export function TextChat() {
             type="file"
             ref={fileInputRef}
             onChange={handleFileUpload}
-            accept="audio/*"
+            accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac,.aiff"
             className="hidden"
           />
           <button
