@@ -170,14 +170,20 @@ export function TextChat() {
       }
       
       if (message.serverContent && message.serverContent.turnComplete) {
+        // Save final content before clearing
+        const finalContent = currentResponseRef.current
+        
         setMessages(prev => {
           const newMessages = [...prev]
           const lastMessage = newMessages[newMessages.length - 1]
           if (lastMessage && lastMessage.isStreaming) {
+            lastMessage.content = finalContent // Ensure final content is set
             lastMessage.isStreaming = false
           }
           return newMessages
         })
+        
+        // Clear after state update
         currentResponseRef.current = ''
         setIsLoading(false)
       }
