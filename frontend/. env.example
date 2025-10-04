@@ -1,0 +1,15 @@
+# Vercel Serverless API Environment Variables
+# Copy this to .env.local for local development
+
+# Required: Google Gemini API Key
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Optional: Firecrawl API Key (for web scraping tools)
+FIRECRAWL_API_KEY=your_firecrawl_api_key_here
+
+# Required: Supabase credentials (for knowledge base)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key_here
+
+# Note: These are SERVER-SIDE ONLY variables used by /api routes
+# Do NOT prefix with VITE_ - they should never be exposed to the browser

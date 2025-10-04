@@ -4,15 +4,17 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from './Button'
 import { cn } from '../lib/utils'
+import { GoogleGenAI, Modality } from '@google/genai'
 
 export function TextChat() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const wsRef = useRef(null)
+  const sessionRef = useRef(null)
   const messagesEndRef = useRef(null)
   const currentResponseRef = useRef('')
+  const responseQueueRef = useRef([])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -23,30 +25,116 @@ export function TextChat() {
   }, [messages])
 
   useEffect(() => {
-    connectWebSocket()
+    connectGemini()
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close()
+      if (sessionRef.current) {
+        try {
+          sessionRef.current.close()
+        } catch (e) {
+          console.error('Error closing session:', e)
+        }
       }
     }
   }, [])
 
-  const connectWebSocket = () => {
-    const WS_URL = import.meta.env.VITE_WS_URL || (
-      (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + 'localhost:8000/ws/chat'
-    )
-    const ws = new WebSocket(WS_URL)
-    
-    ws.onopen = () => {
-      console.log('WebSocket connected')
-      setIsConnected(true)
+  const handleToolCall = async (toolCall) => {
+    const functionResponses = []
+
+    for (const fc of toolCall.functionCalls) {
+      console.log(`Executing tool: ${fc.name}`, fc.args)
+      
+      try {
+        let result
+
+        // Route to appropriate API endpoint
+        if (['scrape_url', 'crawl_website', 'search_web'].includes(fc.name)) {
+          const response = await fetch('/api/tools/firecrawl', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: fc.name, args: fc.args })
+          })
+          result = await response.json()
+        } else if (['fetch_knowledge', 'search_knowledge'].includes(fc.name)) {
+          const response = await fetch('/api/tools/knowledge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: fc.name, args: fc.args })
+          })
+          result = await response.json()
+        } else {
+          result = { error: `Unknown function: ${fc.name}` }
+        }
+
+        functionResponses.push({
+          id: fc.id,
+          name: fc.name,
+          response: result
+        })
+      } catch (error) {
+        console.error(`Error executing ${fc.name}:`, error)
+        functionResponses.push({
+          id: fc.id,
+          name: fc.name,
+          response: { error: error.message }
+        })
+      }
     }
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data)
+    return functionResponses
+  }
+
+  const connectGemini = async () => {
+    try {
+      // Get ephemeral token from Vercel API
+      const tokenResponse = await fetch('/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'text' })
+      })
+
+      if (!tokenResponse.ok) {
+        throw new Error('Failed to get token')
+      }
+
+      const { token } = await tokenResponse.json()
+
+      // Connect to Gemini Live
+      const ai = new GoogleGenAI({ authToken: token })
       
-      if (data.type === 'text') {
-        currentResponseRef.current += data.text
+      const session = await ai.live.connect({
+        callbacks: {
+          onopen: () => {
+            console.log('Gemini session opened')
+            setIsConnected(true)
+          },
+          onmessage: (message) => {
+            responseQueueRef.current.push(message)
+            processMessages()
+          },
+          onerror: (e) => {
+            console.error('Gemini error:', e.message)
+            setIsConnected(false)
+          },
+          onclose: (e) => {
+            console.log('Gemini session closed:', e.reason)
+            setIsConnected(false)
+          }
+        }
+      })
+
+      sessionRef.current = session
+    } catch (error) {
+      console.error('Connection error:', error)
+      setIsConnected(false)
+    }
+  }
+
+  const processMessages = async () => {
+    while (responseQueueRef.current.length > 0) {
+      const message = responseQueueRef.current.shift()
+      
+      if (message.text) {
+        currentResponseRef.current += message.text
         
         setMessages(prev => {
           const newMessages = [...prev]
@@ -64,7 +152,15 @@ export function TextChat() {
           
           return newMessages
         })
-      } else if (data.type === 'turn_complete') {
+      }
+      
+      if (message.toolCall) {
+        console.log('Tool call received:', message.toolCall)
+        const functionResponses = await handleToolCall(message.toolCall)
+        sessionRef.current.sendToolResponse({ functionResponses })
+      }
+      
+      if (message.serverContent && message.serverContent.turnComplete) {
         setMessages(prev => {
           const newMessages = [...prev]
           const lastMessage = newMessages[newMessages.length - 1]
@@ -77,18 +173,6 @@ export function TextChat() {
         setIsLoading(false)
       }
     }
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
-      setIsConnected(false)
-    }
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected')
-      setIsConnected(false)
-    }
-
-    wsRef.current = ws
   }
 
   const sendMessage = (e) => {
@@ -104,10 +188,10 @@ export function TextChat() {
     setMessages(prev => [...prev, userMessage])
     setIsLoading(true)
 
-    wsRef.current.send(JSON.stringify({
-      type: 'text',
-      message: input.trim()
-    }))
+    sessionRef.current.sendClientContent({
+      turns: input.trim(),
+      turnComplete: true
+    })
 
     setInput('')
   }
