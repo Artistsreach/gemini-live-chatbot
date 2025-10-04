@@ -363,7 +363,7 @@ export function TextChat() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={!isConnected || isUploading || isLoading}
-            className="w-11 h-11 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            className="w-11 h-11 rounded-full text-gray-700 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 bg-transparent hover:bg-transparent md:bg-gray-100 md:hover:bg-gray-200"
             title="Upload music file"
           >
             {isUploading ? (
@@ -383,7 +383,7 @@ export function TextChat() {
           <button
             type="submit"
             disabled={!isConnected || (!input.trim() && !uploadedFile) || isLoading}
-            className="w-11 h-11 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg transition-all duration-200 hover:scale-105"
+            className="w-16 md:w-11 h-11 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg transition-all duration-200 hover:scale-105"
           >
             {isLoading ? (
               <Loader2 className="h-5 w-5 animate-spin" strokeWidth={2.5} />
