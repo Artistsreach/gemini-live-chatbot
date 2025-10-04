@@ -18,7 +18,7 @@ function App() {
             <img
               src="https://derwionxcceokrlvgqwq.supabase.co/storage/v1/object/public/images/Migo%20logo%20black.png"
               alt="Migo logo"
-              className="h-10 w-auto"
+              className="h-[160px] w-auto"
             />
           </div>
           <p className="text-base text-gray-500 font-light">
