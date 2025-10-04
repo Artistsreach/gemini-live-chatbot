@@ -103,14 +103,6 @@ export function VoiceChat() {
             console.log('[Voice] Session opened! Requesting microphone access...')
             setIsConnected(true)
             setIsLoading(false)
-            // Start recording after connection is established
-            try {
-              await startRecording(session)
-              console.log('[Voice] Recording started successfully')
-            } catch (err) {
-              console.error('[Voice] Failed to start recording:', err)
-              alert('Failed to access microphone: ' + err.message)
-            }
           },
           onmessage: (message) => {
             console.log('[Voice] Message received:', message)
@@ -133,6 +125,16 @@ export function VoiceChat() {
       
       sessionRef.current = session
       console.log('[Voice] Session stored in ref')
+      
+      // Start recording after session is stored
+      try {
+        await startRecording()
+        console.log('[Voice] Recording started successfully')
+      } catch (err) {
+        console.error('[Voice] Failed to start recording:', err)
+        alert('Failed to access microphone: ' + err.message)
+        setIsConnected(false)
+      }
       
     } catch (error) {
       console.error('[Voice] Connection error:', error)
@@ -202,7 +204,7 @@ export function VoiceChat() {
     }
   }
 
-  const startRecording = async (session) => {
+  const startRecording = async () => {
     try {
       console.log('[Voice] Requesting microphone permission...')
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -217,13 +219,14 @@ export function VoiceChat() {
       const processor = audioContext.createScriptProcessor(4096, 1, 1)
       
       processor.onaudioprocess = (e) => {
-        if (sessionRef.current) {
+        const session = sessionRef.current
+        if (session) {
           const inputData = e.inputBuffer.getChannelData(0)
           const pcmData = convertFloat32ToInt16(inputData)
           const base64Audio = arrayBufferToBase64(pcmData.buffer)
           
           // Send audio data to Gemini Live
-          sessionRef.current.sendRealtimeInput({
+          session.sendRealtimeInput({
             audio: {
               data: base64Audio,
               mimeType: 'audio/pcm;rate=16000'
