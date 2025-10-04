@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { MessageSquare, Mic, Music2 } from 'lucide-react'
+import { MessageSquare, Mic } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from './components/Card'
 import { Button } from './components/Button'
 import { TextChat } from './components/TextChat'
@@ -15,12 +15,11 @@ function App() {
         {/* Header */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg">
-              <Music2 className="h-5 w-5 text-white" strokeWidth={2.5} />
-            </div>
-            <h1 className="text-4xl font-semibold tracking-tight text-gray-900">
-              Migo
-            </h1>
+            <img
+              src="https://derwionxcceokrlvgqwq.supabase.co/storage/v1/object/public/images/Migo%20logo%20black.png"
+              alt="Migo logo"
+              className="h-10 w-auto"
+            />
           </div>
           <p className="text-base text-gray-500 font-light">
             Your AI music business expert
