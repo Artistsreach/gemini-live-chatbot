@@ -337,7 +337,7 @@ export function TextChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-gray-100 p-6">
+      <div className="border-t border-gray-100 pl-6 pr-1 md:pl-6 md:pr-6 py-6">
         {uploadedFile && (
           <div className="mb-3 flex items-center gap-2 p-3 bg-purple-50 rounded-lg">
             <Music2 className="h-4 w-4 text-purple-600" />
@@ -351,7 +351,7 @@ export function TextChat() {
           </div>
         )}
         
-        <form onSubmit={sendMessage} className="flex gap-3">
+        <form onSubmit={sendMessage} className="flex gap-1 md:gap-3">
           <input
             type="file"
             ref={fileInputRef}
