@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from './Button'
 import { cn } from '../lib/utils'
+import { GoogleGenAI, Modality } from '@google/genai'
 
 export function VoiceChat() {
   const [isRecording, setIsRecording] = useState(false)
@@ -12,13 +13,14 @@ export function VoiceChat() {
   const [messages, setMessages] = useState([])
   const [audioEnabled, setAudioEnabled] = useState(true)
   
-  const wsRef = useRef(null)
+  const sessionRef = useRef(null)
   const mediaRecorderRef = useRef(null)
   const audioContextRef = useRef(null)
   const audioStreamRef = useRef(null)
   const audioQueueRef = useRef([])
   const isPlayingRef = useRef(false)
   const messagesEndRef = useRef(null)
+  const processorRef = useRef(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -35,17 +37,25 @@ export function VoiceChat() {
   }, [])
 
   const cleanup = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop()
+    if (processorRef.current) {
+      processorRef.current.disconnect()
+      processorRef.current = null
     }
     if (audioStreamRef.current) {
       audioStreamRef.current.getTracks().forEach(track => track.stop())
+      audioStreamRef.current = null
     }
-    if (wsRef.current) {
-      wsRef.current.close()
+    if (sessionRef.current) {
+      try {
+        sessionRef.current.close()
+      } catch (e) {
+        console.error('Error closing session:', e)
+      }
+      sessionRef.current = null
     }
-    if (audioContextRef.current) {
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close()
+      audioContextRef.current = null
     }
   }
 
@@ -53,8 +63,8 @@ export function VoiceChat() {
     try {
       setIsLoading(true)
       
-      // Get ephemeral token from backend
-      const tokenResponse = await fetch('http://localhost:8000/api/token', {
+      // Get ephemeral token from Vercel API
+      const tokenResponse = await fetch('/api/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'audio' })
@@ -64,118 +74,46 @@ export function VoiceChat() {
         throw new Error('Failed to get token')
       }
       
-      const { token, model } = await tokenResponse.json()
+      const { token } = await tokenResponse.json()
       
-      // Connect to Gemini Live API using WebSocket with ephemeral token
-      const ws = new WebSocket(
-        `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${token}`
-      )
+      // Connect to Gemini Live using SDK
+      const ai = new GoogleGenAI({ 
+        apiKey: token,
+        httpOptions: { apiVersion: 'v1alpha' }
+      })
       
-      ws.onopen = async () => {
-        console.log('Connected to Gemini Live API')
-        setIsConnected(true)
-        setIsLoading(false)
-        
-        // Send setup message
-        ws.send(JSON.stringify({
-          setup: {
-            model: `models/${model}`,
-            generation_config: {
-              response_modalities: ['AUDIO']
-            }
-          }
-        }))
-        
-        // Start recording
-        await startRecording(ws)
-      }
-
-      ws.onmessage = async (event) => {
-        const data = JSON.parse(event.data)
-        
-        // Handle server content with audio data
-        if (data.serverContent) {
-          // Handle input transcription (user's speech)
-          if (data.serverContent.inputTranscription) {
-            const transcript = data.serverContent.inputTranscription.text
-            setMessages(prev => {
-              const newMessages = [...prev]
-              const lastMessage = newMessages[newMessages.length - 1]
-              
-              if (lastMessage && lastMessage.role === 'user' && lastMessage.isStreaming) {
-                lastMessage.content = transcript
-              } else {
-                newMessages.push({
-                  role: 'user',
-                  content: transcript,
-                  isStreaming: true
-                })
-              }
-              return newMessages
-            })
-          }
-          
-          // Handle output transcription (AI's speech)
-          if (data.serverContent.outputTranscription) {
-            const transcript = data.serverContent.outputTranscription.text
-            setMessages(prev => {
-              const newMessages = [...prev]
-              const lastMessage = newMessages[newMessages.length - 1]
-              
-              if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isStreaming) {
-                lastMessage.content = transcript
-              } else {
-                newMessages.push({
-                  role: 'assistant',
-                  content: transcript,
-                  isStreaming: true
-                })
-              }
-              return newMessages
-            })
-          }
-          
-          // Handle model turn with audio
-          if (data.serverContent.modelTurn) {
-            for (const part of data.serverContent.modelTurn.parts) {
-              if (part.inlineData && part.inlineData.data) {
-                // Decode base64 audio and play
-                if (audioEnabled) {
-                  await playAudioChunk(part.inlineData.data)
-                }
-              }
-            }
-          }
-          
-          // Mark streaming as complete
-          if (data.serverContent.turnComplete) {
-            setMessages(prev => {
-              const newMessages = [...prev]
-              newMessages.forEach(msg => {
-                if (msg.isStreaming) {
-                  msg.isStreaming = false
-                }
-              })
-              return newMessages
-            })
+      const session = await ai.live.connect({
+        model: 'gemini-live-2.5-flash-preview',
+        config: {
+          responseModalities: [Modality.AUDIO],
+          inputAudioTranscription: {},
+          outputAudioTranscription: {}
+        },
+        callbacks: {
+          onopen: () => {
+            console.log('Gemini voice session opened')
+            setIsConnected(true)
+            setIsLoading(false)
+            startRecording(session)
+          },
+          onmessage: (message) => {
+            handleVoiceMessage(message)
+          },
+          onerror: (e) => {
+            console.error('Gemini error:', e.message)
+            setIsConnected(false)
+            setIsLoading(false)
+          },
+          onclose: (e) => {
+            console.log('Gemini session closed:', e.reason)
+            setIsConnected(false)
+            setIsRecording(false)
+            cleanup()
           }
         }
-      }
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error)
-        setIsConnected(false)
-        setIsLoading(false)
-      }
-
-      ws.onclose = () => {
-        console.log('WebSocket disconnected')
-        setIsConnected(false)
-        setIsRecording(false)
-        cleanup()
-      }
-
-      wsRef.current = ws
+      })
+      
+      sessionRef.current = session
       
     } catch (error) {
       console.error('Connection error:', error)
@@ -184,7 +122,67 @@ export function VoiceChat() {
     }
   }
 
-  const startRecording = async (ws) => {
+  const handleVoiceMessage = (message) => {
+    // Handle input transcription (user's speech)
+    if (message.serverContent?.inputTranscription) {
+      const transcript = message.serverContent.inputTranscription.text
+      setMessages(prev => {
+        const newMessages = [...prev]
+        const lastMessage = newMessages[newMessages.length - 1]
+        
+        if (lastMessage && lastMessage.role === 'user' && lastMessage.isStreaming) {
+          lastMessage.content = transcript
+        } else {
+          newMessages.push({
+            role: 'user',
+            content: transcript,
+            isStreaming: true
+          })
+        }
+        return newMessages
+      })
+    }
+    
+    // Handle output transcription (AI's speech)
+    if (message.serverContent?.outputTranscription) {
+      const transcript = message.serverContent.outputTranscription.text
+      setMessages(prev => {
+        const newMessages = [...prev]
+        const lastMessage = newMessages[newMessages.length - 1]
+        
+        if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isStreaming) {
+          lastMessage.content = transcript
+        } else {
+          newMessages.push({
+            role: 'assistant',
+            content: transcript,
+            isStreaming: true
+          })
+        }
+        return newMessages
+      })
+    }
+    
+    // Handle audio data
+    if (message.data && audioEnabled) {
+      playAudioChunk(message.data)
+    }
+    
+    // Mark streaming as complete
+    if (message.serverContent?.turnComplete) {
+      setMessages(prev => {
+        const newMessages = [...prev]
+        newMessages.forEach(msg => {
+          if (msg.isStreaming) {
+            msg.isStreaming = false
+          }
+        })
+        return newMessages
+      })
+    }
+  }
+
+  const startRecording = async (session) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       audioStreamRef.current = stream
@@ -197,25 +195,24 @@ export function VoiceChat() {
       const processor = audioContext.createScriptProcessor(4096, 1, 1)
       
       processor.onaudioprocess = (e) => {
-        if (ws.readyState === WebSocket.OPEN) {
+        if (session) {
           const inputData = e.inputBuffer.getChannelData(0)
           const pcmData = convertFloat32ToInt16(inputData)
           const base64Audio = arrayBufferToBase64(pcmData.buffer)
           
-          // Send audio data to Gemini
-          ws.send(JSON.stringify({
-            realtimeInput: {
-              mediaChunks: [{
-                mimeType: 'audio/pcm;rate=16000',
-                data: base64Audio
-              }]
+          // Send audio data to Gemini Live
+          session.sendRealtimeInput({
+            audio: {
+              data: base64Audio,
+              mimeType: 'audio/pcm;rate=16000'
             }
-          }))
+          })
         }
       }
       
       source.connect(processor)
       processor.connect(audioContext.destination)
+      processorRef.current = processor
       
       setIsRecording(true)
       
