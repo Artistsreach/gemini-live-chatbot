@@ -94,7 +94,9 @@ export function VoiceChat() {
         config: {
           responseModalities: [Modality.AUDIO],
           inputAudioTranscription: {},
-          outputAudioTranscription: {}
+          outputAudioTranscription: {},
+          sessionResumption: {},
+          contextWindowCompression: { slidingWindow: {} }
         },
         callbacks: {
           onopen: async () => {
@@ -202,8 +204,10 @@ export function VoiceChat() {
 
   const startRecording = async (session) => {
     try {
+      console.log('[Voice] Requesting microphone permission...')
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       audioStreamRef.current = stream
+      console.log('[Voice] Microphone access granted')
       
       // Create audio context for processing
       const audioContext = new AudioContext({ sampleRate: 16000 })
@@ -213,13 +217,13 @@ export function VoiceChat() {
       const processor = audioContext.createScriptProcessor(4096, 1, 1)
       
       processor.onaudioprocess = (e) => {
-        if (session) {
+        if (sessionRef.current) {
           const inputData = e.inputBuffer.getChannelData(0)
           const pcmData = convertFloat32ToInt16(inputData)
           const base64Audio = arrayBufferToBase64(pcmData.buffer)
           
           // Send audio data to Gemini Live
-          session.sendRealtimeInput({
+          sessionRef.current.sendRealtimeInput({
             audio: {
               data: base64Audio,
               mimeType: 'audio/pcm;rate=16000'
@@ -233,10 +237,12 @@ export function VoiceChat() {
       processorRef.current = processor
       
       setIsRecording(true)
+      console.log('[Voice] Audio processor connected and streaming')
       
     } catch (error) {
-      console.error('Microphone error:', error)
+      console.error('[Voice] Microphone error:', error)
       alert('Failed to access microphone: ' + error.message)
+      throw error
     }
   }
 
