@@ -98,8 +98,11 @@ export function TextChat() {
 
       const { token } = await tokenResponse.json()
 
-      // Connect to Gemini Live
-      const ai = new GoogleGenAI({ authToken: token })
+      // Connect to Gemini Live using ephemeral token as API key
+      const ai = new GoogleGenAI({ 
+        apiKey: token,
+        httpOptions: { apiVersion: 'v1alpha' }
+      })
       
       const session = await ai.live.connect({
         callbacks: {
