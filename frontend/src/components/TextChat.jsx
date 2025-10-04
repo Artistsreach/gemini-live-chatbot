@@ -105,6 +105,7 @@ export function TextChat() {
       })
       
       const session = await ai.live.connect({
+        model: 'gemini-live-2.5-flash-preview',
         callbacks: {
           onopen: () => {
             console.log('Gemini session opened')
