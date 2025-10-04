@@ -290,7 +290,7 @@ export function TextChat() {
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center max-w-md">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-900 to-gray-700 flex items-center justify-center mx-auto mb-6 shadow-lg">
                 <Music2 className="h-8 w-8 text-white" strokeWidth={2.5} />
               </div>
               <h2 className="text-2xl font-semibold text-gray-900 mb-3">
@@ -315,7 +315,7 @@ export function TextChat() {
               className={cn(
                 'max-w-[75%] rounded-2xl px-5 py-3 shadow-sm',
                 message.role === 'user'
-                  ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white'
+                  ? 'bg-gradient-to-br from-gray-900 to-gray-700 text-white'
                   : 'bg-gray-50 text-gray-900'
               )}
             >
@@ -383,7 +383,7 @@ export function TextChat() {
           <button
             type="submit"
             disabled={!isConnected || (!input.trim() && !uploadedFile) || isLoading}
-            className="w-16 md:w-11 h-11 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg transition-all duration-200 hover:scale-105"
+            className="w-16 md:w-11 h-11 rounded-full bg-transparent md:bg-gradient-to-br md:from-gray-900 md:to-gray-700 text-purple-600 md:text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed md:hover:shadow-lg transition-all duration-200 md:hover:scale-105"
           >
             {isLoading ? (
               <Loader2 className="h-5 w-5 animate-spin" strokeWidth={2.5} />

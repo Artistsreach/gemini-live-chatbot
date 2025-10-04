@@ -331,7 +331,7 @@ export function VoiceChat() {
         {messages.length === 0 && !isConnected && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center max-w-md">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mx-auto mb-6 shadow-xl">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-900 to-gray-700 flex items-center justify-center mx-auto mb-6 shadow-xl">
                 <Mic className="h-10 w-10 text-white" strokeWidth={2.5} />
               </div>
               <h2 className="text-2xl font-semibold text-gray-900 mb-3">
@@ -347,7 +347,7 @@ export function VoiceChat() {
         {messages.length === 0 && isConnected && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mx-auto mb-6 shadow-xl animate-pulse">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-900 to-gray-700 flex items-center justify-center mx-auto mb-6 shadow-xl animate-pulse">
                 <Mic className="h-10 w-10 text-white" strokeWidth={2.5} />
               </div>
               <h2 className="text-2xl font-semibold text-gray-900 mb-2">
@@ -372,7 +372,7 @@ export function VoiceChat() {
               className={cn(
                 'max-w-[75%] rounded-2xl px-5 py-3 shadow-sm',
                 message.role === 'user'
-                  ? 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white'
+                  ? 'bg-gradient-to-br from-gray-900 to-gray-700 text-white'
                   : 'bg-gray-50 text-gray-900'
               )}
             >
@@ -404,7 +404,7 @@ export function VoiceChat() {
               <button
                 onClick={connectVoice}
                 disabled={isLoading}
-                className="flex items-center gap-3 px-8 py-3.5 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-full font-medium disabled:opacity-50 hover:shadow-xl transition-all duration-200 hover:scale-105"
+                className="flex items-center gap-3 px-8 py-3.5 bg-gradient-to-br from-gray-900 to-gray-700 text-white rounded-full font-medium disabled:opacity-50 hover:shadow-xl transition-all duration-200 hover:scale-105"
               >
                 {isLoading ? (
                   <>
